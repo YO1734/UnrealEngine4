@@ -4,10 +4,14 @@
 #include "SurvivalCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Actor.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/InventoryComponent.h"
 #include "Components/InteractionComponent.h"
 #include "Blueprint/UserWidget.h"
+#include "World/Pickup.h"
+
 // Sets default values
 ASurvivalCharacter::ASurvivalCharacter()
 {
@@ -208,6 +212,84 @@ bool ASurvivalCharacter::IsInteracting() const
 float ASurvivalCharacter::GetRemainingInteractTime() const
 {
 	return GetWorldTimerManager().GetTimerRemaining(TimerHandle_Interact);
+}
+
+void ASurvivalCharacter::UseItem(UItem* Item)
+{
+	/*
+	if (Role < ROLE_Authority && Item)
+	{
+		ServerUseItem(Item);
+	}
+*/
+	if (HasAuthority())
+	{
+		if (PlayerInventory && PlayerInventory->FindItem(Item))
+		{
+			return;
+		}
+	}
+
+	if (Item)
+	{
+		Item->Use(this);
+	}
+}
+
+void ASurvivalCharacter::DropItem(UItem* Item, const int32 Quantity)
+{
+
+	if (PlayerInventory && Item && PlayerInventory->FindItem(Item))
+	{
+		/*
+		if (Role < ROLE_Authority)
+		{
+			ServerDropItem(Item,Quantity);
+			return;
+		}*/
+		if (HasAuthority())
+		{
+			const int32 ItemQuantity = Item->GetQuantity();
+			const int32 DroppedQuantity = PlayerInventory->ConsumeItem(Item, Quantity);
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this;
+			SpawnParams.bNoFail = true;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+			FVector SpawnLocation = GetActorLocation();
+			SpawnLocation.Z -= GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+
+			FTransform SpawnTransform(GetActorRotation(), SpawnLocation);
+
+			ensure(PickupClass);
+
+			APickup* Pickup = GetWorld()->SpawnActor<APickup>(PickupClass, SpawnTransform, SpawnParams);
+			Pickup->InitializePickup(Item->GetClass(), DroppedQuantity);
+
+
+		}
+	}
+
+}
+
+void ASurvivalCharacter::ServerDropItem_Implementation(UItem* Item, const int32 Quantity)
+{
+	DropItem(Item, Quantity);
+
+}
+bool ASurvivalCharacter::ServerDropItem_Validate(UItem* Item, const int32 Quantity)
+{
+	return true;
+}
+
+void ASurvivalCharacter::ServerUseItem_Implementation(UItem* Item)
+{
+	UseItem(Item);
+}
+bool ASurvivalCharacter::ServerUseItem_Validate(UItem* Item)
+{
+	return true;
 }
 
 void ASurvivalCharacter::MoveForward(float Val)

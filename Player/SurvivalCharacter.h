@@ -119,6 +119,26 @@ public:
 	//Get the time till we interact with the current interactable
 	float GetRemainingInteractTime() const;
 
+	//Items
+
+	/** [Server] Use an item from oure inventory*/
+	UFUNCTION(BlueprintCallable, Category = "Items")
+		void UseItem(class UItem* Item);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+		void ServerUseItem(class UItem* Item);
+
+	/**[Server] Drop an item */
+	UFUNCTION(BlueprintCallable, Category = "Items")
+		void DropItem(class UItem* Item, const int32 Quantity);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+		void ServerDropItem(class UItem* Item, const int32 Quantity);
+
+	/**Need this because the pickups use a blueprint base class */
+	UPROPERTY(EditDefaultsOnly, Category = "Item")
+		TSubclassOf<class APickup> PickupClass;
+
 protected:
 
 	void MoveForward(float Val);
