@@ -30,7 +30,7 @@ struct FItemAddResult
 public:
 
 	FItemAddResult() {};
-	FItemAddResult(int32 InItemQuantity) : AmountToGive(InItemQuantity), ActualAmountGiven(1) {};
+	FItemAddResult(int32 InItemQuantity) : AmountToGive(InItemQuantity), ActualAmountGiven(InItemQuantity) {};
 	FItemAddResult(int32 InItemQuantity, int32 InQuantityAdded): AmountToGive(InItemQuantity), ActualAmountGiven(InQuantityAdded){};
 
 	//The amount of the item that we tried to add

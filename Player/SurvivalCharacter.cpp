@@ -3,6 +3,7 @@
 
 #include "SurvivalCharacter.h"
 #include "Camera/CameraComponent.h"
+#include "Player/SurvivalPlayerController.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Actor.h"
 #include "Components/CapsuleComponent.h"
@@ -10,6 +11,9 @@
 #include "Components/InventoryComponent.h"
 #include "Components/InteractionComponent.h"
 #include "Blueprint/UserWidget.h"
+#include "Items/EquippableItem.h"
+#include "Items/GearItem.h"
+#include "Materials/MaterialInstance.h"
 #include "World/Pickup.h"
 
 // Sets default values
@@ -22,6 +26,26 @@ ASurvivalCharacter::ASurvivalCharacter()
 CameraComponent = CreateDefaultSubobject<UCameraComponent>("CameraComponent");
 CameraComponent->SetupAttachment(GetMesh(), FName("CameraSocket"));
 CameraComponent->bUsePawnControlRotation = true;
+
+
+HelmetMesh = PlayerMeshes.Add ( EEquippableSlot::EIS_Helmet, CreateDefaultSubobject<USkeletalMeshComponent> ( TEXT ( "Helmet" ) ) );
+ChestMesh = PlayerMeshes.Add ( EEquippableSlot::EIS_Chest, CreateDefaultSubobject<USkeletalMeshComponent> ( TEXT ( "Chest" ) ) );
+LegsMesh = PlayerMeshes.Add ( EEquippableSlot::EIS_Legs, CreateDefaultSubobject<USkeletalMeshComponent> ( TEXT ( "Legs" ) ) );
+FeetMesh = PlayerMeshes.Add ( EEquippableSlot::EIS_Feet, CreateDefaultSubobject<USkeletalMeshComponent> ( TEXT ( "Feet" ) ) );
+VestMesh = PlayerMeshes.Add ( EEquippableSlot::EIS_Vest, CreateDefaultSubobject<USkeletalMeshComponent> ( TEXT ( "Vesth" ) ) );
+HandsMesh = PlayerMeshes.Add ( EEquippableSlot::EIS_Hands, CreateDefaultSubobject<USkeletalMeshComponent> ( TEXT ( "Hands" ) ) );
+BackpackMesh = PlayerMeshes.Add ( EEquippableSlot::EIS_Backpack, CreateDefaultSubobject<USkeletalMeshComponent> ( TEXT ( "Backpack" ) ) );
+
+
+//Tell all the body meshes to use the head mesh for animation
+for (auto& PlayerMesh : PlayerMeshes)
+{
+	USkeletalMeshComponent* MeshComponent = PlayerMesh.Value;
+	MeshComponent->SetupAttachment ( GetMesh () );
+	MeshComponent->SetMasterPoseComponent ( GetMesh () );
+}
+
+PlayerMeshes.Add ( EEquippableSlot::EIS_Head, GetMesh () );
 
 HelmetMesh = CreateDefaultSubobject<USkeletalMeshComponent>("HelmetMesh");
 HelmetMesh->SetupAttachment(GetMesh());
@@ -72,6 +96,11 @@ void ASurvivalCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	//When the player spawns in they have no items equipped, so cache these items
+	for (auto& PlayerMesh : PlayerMeshes)
+	{
+		NakedMeshes.Add ( PlayerMesh.Key, PlayerMesh.Value->SkeletalMesh );
+	}
 }
 
 void ASurvivalCharacter::CouldntFindInteractable()
@@ -216,12 +245,12 @@ float ASurvivalCharacter::GetRemainingInteractTime() const
 
 void ASurvivalCharacter::UseItem(UItem* Item)
 {
-	/*
-	if (Role < ROLE_Authority && Item)
+	
+	if (ASurvivalCharacter::AActor::GetLocalRole() < ROLE_Authority && Item)
 	{
 		ServerUseItem(Item);
 	}
-*/
+
 	if (HasAuthority())
 	{
 		if (PlayerInventory && PlayerInventory->FindItem(Item))
@@ -232,7 +261,7 @@ void ASurvivalCharacter::UseItem(UItem* Item)
 
 	if (Item)
 	{
-		Item->Use(this);
+		Item->Use ( this );
 	}
 }
 
@@ -241,12 +270,12 @@ void ASurvivalCharacter::DropItem(UItem* Item, const int32 Quantity)
 
 	if (PlayerInventory && Item && PlayerInventory->FindItem(Item))
 	{
-		/*
-		if (Role < ROLE_Authority)
+		
+		if (ASurvivalCharacter::AActor::GetLocalRole()< ROLE_Authority)
 		{
 			ServerDropItem(Item,Quantity);
 			return;
-		}*/
+		}
 		if (HasAuthority())
 		{
 			const int32 ItemQuantity = Item->GetQuantity();
@@ -292,6 +321,78 @@ bool ASurvivalCharacter::ServerUseItem_Validate(UItem* Item)
 	return true;
 }
 
+bool ASurvivalCharacter::EquipItem ( UEquippableItem* Item )
+{
+	EquippedItems.Add ( Item->Slot, Item );
+	OnEquippedItemsChanged.Broadcast ( Item->Slot, Item );
+	return true;
+}
+
+bool ASurvivalCharacter::UnEquipItem ( UEquippableItem* Item )
+{
+	
+	if (Item)
+	{
+		if (EquippedItems.Contains ( Item->Slot ))
+		{
+			if (Item == *EquippedItems.Find ( Item->Slot ))
+			{
+				EquippedItems.Remove ( Item->Slot );
+				OnEquippedItemsChanged.Broadcast ( Item->Slot, nullptr );
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void ASurvivalCharacter::EquipGear (class UGearItem* Gear )
+{
+
+	if (USkeletalMeshComponent* GearMesh = *PlayerMeshes.Find ( Gear->Slot ))
+	{
+		GearMesh->SetSkeletalMesh ( Gear->Mesh );
+		GearMesh->SetMaterial ( GearMesh->GetMaterials ().Num () - 1,Gear->MaterialInstacne );
+	}
+}
+
+void ASurvivalCharacter::UnEquipGear ( const EEquippableSlot Slot )
+{
+
+	if (USkeletalMeshComponent* EquippableMesh = *PlayerMeshes.Find ( Slot ))
+	{
+		if (USkeletalMesh* BodyMesh = *NakedMeshes.Find ( Slot ))
+		{
+			EquippableMesh->SetSkeletalMesh ( BodyMesh );
+
+			//Put the materials back on the body mesh (Since gear may have applied a different material
+			for (int32 i = 0; i < BodyMesh->Materials.Num (); i++)
+			{
+				if (BodyMesh->Materials.IsValidIndex ( i ))
+				{
+					EquippableMesh->SetMaterial ( i, BodyMesh->Materials[i].MaterialInterface );
+				}
+			}
+
+		}
+		else
+		{
+			//For some gear like backpacks, there is no naked mesh
+			EquippableMesh->SetSkeletalMesh ( nullptr );
+		}
+	}
+
+}
+
+USkeletalMeshComponent* ASurvivalCharacter::GetSlotSkeletalMeshComponent ( const EEquippableSlot Slot )
+{
+	if (PlayerMeshes.Contains ( Slot ))
+	{
+		return *PlayerMeshes.Find ( Slot );
+	}
+	return nullptr;
+}
+
 void ASurvivalCharacter::MoveForward(float Val)
 {
 	if (Val != 0.0f)
@@ -332,6 +433,17 @@ void ASurvivalCharacter::Tick(float DeltaTime)
 	{
 		PerfomInteractionCheck();
 	}
+}
+
+void ASurvivalCharacter::Restart ()
+{
+	Super::Restart ();
+
+	if (ASurvivalPlayerController* PC = Cast<ASurvivalPlayerController> ( GetController () ))
+	{
+		PC->ShowIngameUI ();
+	}
+
 }
 
 void ASurvivalCharacter::PerfomInteractionCheck()

@@ -8,11 +8,12 @@
 #define LOCTEXT_NAMESPACE "Item"
 
 
-void UItem::GetLifetimeReplicatedProps(TArray< class FLifetimeProperty >& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(UItem, Quantity);
 
+
+void UItem::GetLifetimeReplicatedProps ( TArray<FLifetimeProperty>& OutLifetimeProps ) const
+{
+	Super::GetLifetimeReplicatedProps ( OutLifetimeProps );
+	DOREPLIFETIME ( UItem, Quantity );
 }
 
 bool UItem::IsSupportedForNetworking() const

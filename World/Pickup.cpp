@@ -148,13 +148,13 @@ void APickup::OnTakePickup(ASurvivalCharacter* Taker)
 
 			if (AddResult.ActualAmountGiven < Item->GetQuantity())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Pick up was taken but player was not valid2"));
+				
 				Item->SetQuantity(Item->GetQuantity() - AddResult.ActualAmountGiven);
 			
 			}
 			else if (AddResult.ActualAmountGiven >= Item->GetQuantity())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Pick up was taken but player was not valid3"));
+				
 				Destroy();
 			}
 

@@ -30,6 +30,9 @@ struct FInteractionData
 };
 
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams ( FOnEquppedItemsChanged, const EEquippableSlot, Slot, const UEquippableItem*, Item );
+
+
 UCLASS()
 class SURVIVALGAME_API ASurvivalCharacter : public ACharacter
 {
@@ -38,6 +41,15 @@ class SURVIVALGAME_API ASurvivalCharacter : public ACharacter
 public:
 	// Sets default values for this character's properties
 	ASurvivalCharacter();
+
+	//The mesh to have been equipped, if we don`t have an item equipped - ie the bare skin meshes
+	UPROPERTY ( BlueprintReadOnly, Category = "Mesh" )
+		TMap<EEquippableSlot, USkeletalMesh*>NakedMeshes;
+
+	//The players body meshes
+	UPROPERTY ( BlueprintReadOnly, Category = "Mesh" )
+		TMap<EEquippableSlot, USkeletalMeshComponent*> PlayerMeshes;
+
 
 	UPROPERTY(EditAnyWhere, BlueprintReadOnly, Category = "Components")
 	class UInventoryComponent* PlayerInventory;
@@ -74,6 +86,7 @@ protected:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	virtual void Restart () override;
 	//How often in seconds to check for an interactable object. Set this to zero if you want to check every tick.
 	UPROPERTY(EditDefaultsOnly,Category="Interaction")
 	float InteractionCheckFrequency;
@@ -121,7 +134,7 @@ public:
 
 	//Items
 
-	/** [Server] Use an item from oure inventory*/
+	/** [Server] Use an item from our inventory*/
 	UFUNCTION(BlueprintCallable, Category = "Items")
 		void UseItem(class UItem* Item);
 
@@ -139,7 +152,29 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Item")
 		TSubclassOf<class APickup> PickupClass;
 
+public:
+
+	bool EquipItem ( class UEquippableItem* Item );
+	bool UnEquipItem ( class UEquippableItem* Item );
+
+	void EquipGear ( class UGearItem* Gear );
+	void UnEquipGear (const EEquippableSlot Slot );
+
+	UPROPERTY ( BlueprintAssignable, Category = "Items" )
+		FOnEquppedItemsChanged OnEquippedItemsChanged;
+
+	UFUNCTION ( BlueprintPure )
+		class USkeletalMeshComponent* GetSlotSkeletalMeshComponent ( const EEquippableSlot Slot );
+
+	UFUNCTION ( BlueprintPure )
+		FORCEINLINE TMap<EEquippableSlot, UEquippableItem*> GetEquippedItems () const { return EquippedItems; };
+
 protected:
+
+	//Allows for efficient access to equipped items
+	UPROPERTY ( VisibleAnywhere, Category = "Items" )
+	TMap<EEquippableSlot, UEquippableItem*>EquippedItems;
+
 
 	void MoveForward(float Val);
 	void MoveRight(float Val);
