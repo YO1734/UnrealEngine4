@@ -21,6 +21,11 @@ bool UItem::IsSupportedForNetworking() const
 	return true;
 }
 
+UWorld* UItem::GetWorld () const
+{
+	return World;
+}
+
 #if WITH_EDITOR
 void UItem::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {

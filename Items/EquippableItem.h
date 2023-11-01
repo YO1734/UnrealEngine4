@@ -45,6 +45,8 @@ public:
 
 	virtual bool ShouldShowInInventory () const override;
 
+	virtual void AddedToInventory ( class UInventoryComponent* Inventory ) override;
+
 	UFUNCTION ( BlueprintPure, Category = "Equippables" )
 		bool IsEquipped () { return bEquipped; };
 

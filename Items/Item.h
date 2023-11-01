@@ -36,6 +36,8 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual bool IsSupportedForNetworking() const override;
 
+	virtual class UWorld* GetWorld () const override; 
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -43,6 +45,8 @@ protected:
 public:
 	UItem();
 
+	UPROPERTY ( Transient )
+		class UWorld* World;
 	/*The mesh to display for this items pickup*/
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Item")
 	class UStaticMesh* PickupMesh;
@@ -115,6 +119,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Item")
 	virtual bool ShouldShowInInventory () const;
+
+	UFUNCTION ( BlueprintImplementableEvent )
+		void OnUse ( class ASurvivalCharacter* Character );
 
 	virtual void Use(class ASurvivalCharacter* Character);
 	virtual void AddedToInventory(class UInventoryComponent* Inventory);

@@ -37,6 +37,30 @@ public:
 UCLASS()
 class SURVIVALGAME_API AItemSpawn : public ATargetPoint
 {
-	GENERATED_BODY()
-	
+	GENERATED_BODY ()
+
+		AItemSpawn ();
+
+	UPROPERTY ( EditAnywhere, Category = "Loot" )
+	class UDataTable* LootTable;
+
+	UPROPERTY ( EditDefaultsOnly, Category = "Loot" )
+	TSubclassOf<class APickup> PickupClass;
+
+	UPROPERTY ( EditDefaultsOnly, Category = "Loot" )
+	FIntPoint RespawnRange;
+
+protected:
+
+	FTimerHandle Timer_Handle_RespawnItem;
+
+	UPROPERTY ()
+		TArray<AActor*> SpawnedPickups;
+	virtual void BeginPlay () override;
+
+	UFUNCTION ()
+		void SpawnItem ();
+
+	UFUNCTION ()
+		void OnItemTaken ( AActor* DestroyedActor );
 };

@@ -82,6 +82,10 @@ void ALootableChest::BeginPlay()
 
 void ALootableChest::OnInteract ( ASurvivalCharacter* Character )
 {
+	if (Character)
+	{
+		Character->SetLootSource ( Inventory );
+	}
 }
 
 

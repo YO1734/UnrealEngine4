@@ -1,6 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Player"
   ],
+  "SelectedNode": "\\Player\\SurvivalCharacter.h",
   "PreviewInSolutionExplorer": false
 }

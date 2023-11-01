@@ -66,6 +66,22 @@ bool UEquippableItem::ShouldShowInInventory () const
 	return !bEquipped;
 }
 
+void UEquippableItem::AddedToInventory ( UInventoryComponent* Inventory )
+{
+	//If the player looted an item don`t equip it
+	if (ASurvivalCharacter* Character = Cast<ASurvivalCharacter> ( Inventory->GetOwner () ))
+	{
+		if (Character && !Character->IsLooting ())
+		{
+			//If we take an equippable, and don`t have an item equipped at it`s slot, then auto equip it
+			if (!Character->GetEquippedItems ().Contains ( Slot ))
+			{
+				SetEquipped ( true );
+			}
+		}
+	}
+}
+
 void UEquippableItem::SetEquipped ( bool bNewEquipped )
 {
 	bEquipped = bNewEquipped;

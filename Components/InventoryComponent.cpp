@@ -195,6 +195,7 @@ UItem* UInventoryComponent::AddItem(UItem* Item)
 	if (GetOwner() && GetOwner()->HasAuthority())
 	{
 		UItem* NewItem = NewObject<UItem>(GetOwner(), Item->GetClass());
+		NewItem->World = GetWorld ();
 		NewItem->SetQuantity(Item->GetQuantity());
 		NewItem->OwningInventory = this;
 		NewItem->AddedToInventory(this);
@@ -208,6 +209,16 @@ UItem* UInventoryComponent::AddItem(UItem* Item)
 void UInventoryComponent::OnRep_Items()
 {
 	OnInventoryUpdated.Broadcast();
+
+	for (auto& Item : Items)
+	{
+		if (Item && !Item->World)
+		{
+			Item->World = GetWorld ();
+		}
+	}
+
+
 }
 
 FItemAddResult UInventoryComponent::TryAddItem_Internal(UItem* Item)
