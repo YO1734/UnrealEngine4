@@ -187,6 +187,9 @@ public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerBeginInteract();
 
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerConfirmEquipWeapon(UWeaponItem* Weapon);
+
 	UFUNCTION(Server,Reliable,WithValidation)
 	void ServerEndInteract();
 

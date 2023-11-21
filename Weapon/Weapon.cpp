@@ -130,9 +130,41 @@ void AWeapon::ReturnAmmoToInventory()
 
 void AWeapon::OnEquip()
 {
+
 	AttachMeshToPawn();
 
+
+
 	bPendingEquip = true;
+
+	//if (bPendingEquip)
+	//{
+	//	float AnimDuration = PlayWeaponAnimation ( EquipAnim );
+	//	if (AnimDuration <=0.0f)
+	//	{
+	//		AnimDuration = .5f;
+	//	}
+
+	//	GetWorldTimerManager ().SetTimer ( TimerHandle_EquipWeapon, this, &AWeapon::OnEquipFinished, AnimDuration, false );
+
+	//}
+
+	//	//	float AnimDuration = PlayWeaponAnimation(ReloadAnim);
+	//	//if (AnimDuration <= 0.0f)
+	//	//{
+	//	//	AnimDuration = .5f;
+	//	//}
+
+	//	//GetWorldTimerManager().SetTimer(TimerHandle_StopReload, this, &AWeapon::StopReload, AnimDuration, false);
+	//	//if (HasAuthority())
+	//	//{
+	//	//	GetWorldTimerManager().SetTimer(TimerHandle_ReloadWeapon, this, &AWeapon::ReloadWeapon, FMath::Max(0.1f, AnimDuration - 0.1f), false);
+	//	//}
+
+
+
+
+
 	DetermineWeaponState();
 
 	OnEquipFinished();
@@ -141,6 +173,7 @@ void AWeapon::OnEquip()
 	if (PawnOwner && PawnOwner->IsLocallyControlled())
 	{
 		PlayWeaponSound(EquipSound);
+
 	}
 }
 
@@ -555,7 +588,9 @@ void AWeapon::HandleHit(const FHitResult& Hit, class ASurvivalCharacter* HitPlay
 		UE_LOG(LogTemp, Warning, TEXT("Hit actor %s"), *Hit.GetActor()->GetName());
 	}
 
-	ServerHandleHit(Hit, HitPlayer);
+	UE_LOG ( LogTemp, Warning, TEXT ( "Has Authority run ServerHandleHit" ) );
+	ServerHandleHit ( Hit, HitPlayer );
+
 
 	if (HitPlayer && PawnOwner)
 	{
@@ -594,6 +629,7 @@ bool AWeapon::ServerHandleHit_Validate(const FHitResult& Hit, class ASurvivalCha
 	return true;
 }
 
+
 void AWeapon::FireShot()
 {
 	if (PawnOwner)
@@ -615,7 +651,7 @@ void AWeapon::FireShot()
 			QueryParams.AddIgnoredActor(this);
 			QueryParams.AddIgnoredActor(PawnOwner);
 
-			FVector FireDir = CamRot.Vector();// PawnOwner->IsAiming() ? CamRot.Vector() : FMath::VRandCone(CamRot.Vector(), FMath::DegreesToRadians(PawnOwner->IsAiming() ? 0.f : 5.f));
+			FVector FireDir = PawnOwner->IsAiming() ? CamRot.Vector() : FMath::VRandCone(CamRot.Vector(), FMath::DegreesToRadians(PawnOwner->IsAiming() ? 0.f : 5.f));
 			FVector TraceStart = CamLoc;
 			FVector TraceEnd = (FireDir * HitScanConfig.Distance) + CamLoc;
 

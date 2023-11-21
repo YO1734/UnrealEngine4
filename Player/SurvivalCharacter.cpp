@@ -302,6 +302,16 @@ void ASurvivalCharacter::EndInteract()
 
 }
 
+void ASurvivalCharacter::ServerConfirmEquipWeapon_Implementation (UWeaponItem* Weapon) //NEW
+{
+	EquipWeapon ( Weapon );
+}
+
+bool ASurvivalCharacter::ServerConfirmEquipWeapon_Validate (UWeaponItem* Weapon) //NEW
+{
+	return true;
+}
+
 void ASurvivalCharacter::ServerBeginInteract_Implementation()
 {
 	BeginInteract();
@@ -485,7 +495,13 @@ void ASurvivalCharacter::UnEquipGear ( const EEquippableSlot Slot )
 
 void ASurvivalCharacter::EquipWeapon ( UWeaponItem* WeaponItem )
 {
-	if (WeaponItem && WeaponItem->WeaponClass && HasAuthority () || WeaponItem && WeaponItem->WeaponClass && GetLocalRole() < ROLE_Authority )
+
+	if (WeaponItem && WeaponItem->WeaponClass && GetLocalRole () < ROLE_Authority)
+	{
+		ServerConfirmEquipWeapon ( WeaponItem );
+	}
+
+	if (WeaponItem && WeaponItem->WeaponClass && HasAuthority ())
 	{
 		if (EquippedWeapon)
 		{
@@ -510,7 +526,7 @@ void ASurvivalCharacter::EquipWeapon ( UWeaponItem* WeaponItem )
 void ASurvivalCharacter::UnEquipWeapon ()
 {
 
-	if (EquippedWeapon && GetLocalRole() < ROLE_Authority)
+	if (EquippedWeapon/* && GetLocalRole() < ROLE_Authority*/ )
 	{
 		EquippedWeapon->OnUnEquip ();
 		EquippedWeapon->Destroy ();

@@ -378,6 +378,8 @@ protected:
 	/** Handle for efficient management of OnEquipFinished timer */
 	FTimerHandle TimerHandle_OnEquipFinished;
 
+	FTimerHandle TimerHandle_EquipWeapon;
+
 	/** Handle for efficient management of StopReload timer */
 	FTimerHandle TimerHandle_StopReload;
 
@@ -426,8 +428,12 @@ protected:
 	/**Handle hit locally before asking server to process hit*/
 	void HandleHit(const FHitResult& Hit, class ASurvivalCharacter* HitPlayer = nullptr);
 
-	UFUNCTION(Server, Reliable, WithValidation)
+	UFUNCTION(Reliable, Server, WithValidation)
 	void ServerHandleHit(const FHitResult& Hit, class ASurvivalCharacter* HitPlayer = nullptr);
+
+	//UFUNCTION()
+	//void ServerHandleHit(const FHitResult& Hit, class ASurvivalCharacter* HitPlayer = nullptr);
+
 
 	/** [local] weapon specific fire implementation */
 	virtual void FireShot();
