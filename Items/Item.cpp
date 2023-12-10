@@ -51,6 +51,7 @@ UItem::UItem()
 	Quantity = 1;
 	MaxStackSize = 2;
 	Repkey = 0;
+	ConstWeight = Weight;
 }
 
 void UItem::OnRep_Quantity()

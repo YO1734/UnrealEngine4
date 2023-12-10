@@ -70,7 +70,7 @@ bool UInventoryComponent::RemoveItem(UItem* Item)
 			Items.RemoveSingle(Item);
 
 			ReplicatedItemsKey++;
-
+			OnInventoryUpdated.Broadcast ();
 			return true;
 		}
 	}
@@ -101,6 +101,23 @@ UItem* UInventoryComponent::FindItem(UItem* Item) const
 	}
 
 	return nullptr;
+}
+
+TArray<UItem*> UInventoryComponent::FindItems ( UItem* Item ) const
+{
+	TArray<UItem*> FoundedItems;
+	if (Item)
+	{
+		for (auto& InvItem : Items)
+		{
+			if (InvItem && InvItem->GetClass () == Item->GetClass ())
+			{
+				FoundedItems.Push ( InvItem );
+			}
+		}
+		return FoundedItems;
+	}
+	return FoundedItems;
 }
 
 UItem* UInventoryComponent::FindItemByClass(TSubclassOf<class UItem> ItemClass) const
@@ -143,6 +160,7 @@ float UInventoryComponent::GetCurrentWeight() const
 	}
 	return Weight;
 }
+
 
 void UInventoryComponent::SetWeightCapacity(const float NewWeightCapacity)
 {
@@ -242,17 +260,25 @@ FItemAddResult UInventoryComponent::TryAddItem_Internal(UItem* Item)
 				return FItemAddResult::AddedNone(AddAmount, LOCTEXT("InventoryTooMuchWeightText", "Couldn't add item to Inventory. Carying to much weight"));
 			}
 		}
-		
 		//If the item is stackable, check if we already have it an add it to their stack
 		if (Item->bStackable)
 		{
-
 			//Somehow the items quantity went over the max stack size. This couldn't happen
 			ensure(Item->GetQuantity() <= Item->MaxStackSize);
-
-			if (UItem* ExisingItem = FindItem(Item))
+			//Check if player have this item in inventory
+			if (FindItem(Item))
 			{
-				if (ExisingItem->GetQuantity() < ExisingItem->MaxStackSize)
+				TArray<UItem*>FoundedItems = FindItems ( Item );
+				UItem* ExisingItem = nullptr;
+				for (auto& FoundedItem : FoundedItems)
+				{
+					if (FoundedItem->GetQuantity () < FoundedItem->MaxStackSize)
+					{
+						ExisingItem = FoundedItem;
+					}
+				}
+
+				if (ExisingItem && ExisingItem->GetQuantity() < ExisingItem->MaxStackSize)
 				{
 					//Find out how much of the item to add
 					const int32 CapacityMaxAddAmount = ExisingItem->MaxStackSize - ExisingItem->GetQuantity();
@@ -300,18 +326,84 @@ FItemAddResult UInventoryComponent::TryAddItem_Internal(UItem* Item)
 					}
 				
 				}
+				//else
+				//{
+				//	return FItemAddResult::AddedNone(AddAmount, FText::Format(LOCTEXT("InventoryFullStackText", "Couldn't add {ItemName}. You already have a full stack of this Item"), Item->ItemDisplayName));
+				//}
+			}
+			//If player don't have this item in inventory
+			if (Item->GetQuantity() <= Item->MaxStackSize)
+			{
+				int ActualAddAmount = -1;
+				//Find out how much of the item to add
+				if (Item->GetQuantity () == Item->MaxStackSize)
+				{
+					const int32 CapacityMaxAddAmount = Item->GetQuantity ();
+					ActualAddAmount = FMath::Min(AddAmount, CapacityMaxAddAmount);
+				}
+				else if (Item->GetQuantity () < Item->MaxStackSize)
+				{
+						const int32 CapacityMaxAddAmount = Item->MaxStackSize - Item->GetQuantity ();
+						ActualAddAmount = FMath::Min ( AddAmount, CapacityMaxAddAmount );
+
+				}
 				else
 				{
-					return FItemAddResult::AddedNone(AddAmount, FText::Format(LOCTEXT("InventoryFullStackText", "Couldn't add {ItemName}. You already have a full stack of this Item"), Item->ItemDisplayName));
+					FText ErrorText = LOCTEXT ( "InventoryErrorText", "Couldn't add all of the item to your inventory" );
+					return FItemAddResult::AddedNone ( AddAmount, ErrorText);
+
 				}
+				FText ErrorText = LOCTEXT("InventoryErrorText", "Couldn't add all of the item to your inventory");
+
+				//Adjust based on how much weight we can carry
+				if (!FMath::IsNearlyZero(Item->Weight))
+				{
+					//Find the maximum amount of the item we could take due to weight
+					const int32 WeightMaxAddAmount = FMath::FloorToInt((WeightCapacity - GetCurrentWeight()) / Item->Weight);
+					ActualAddAmount = FMath::Min(ActualAddAmount, WeightMaxAddAmount);
+
+					if (ActualAddAmount < AddAmount)
+					{
+						ErrorText = FText::Format(LOCTEXT("InventoryTooMuchWeightText", "Couldn't add entire stack of {ItemName} to Inventory."), Item->ItemDisplayName);
+					}
+
+				}
+				else if (ActualAddAmount < AddAmount)
+				{
+					//If the item weights none and we cant take it, then there was a capacity issue
+					ErrorText = FText::Format(LOCTEXT("InventoryCapacityFullText", "Couldn't add entire stack of {ItemName} to Inventory. Inventory was full."), Item->ItemDisplayName);
+				}
+
+				//We couldnt add any of the item to our inventory
+				if (ActualAddAmount <= 0)
+				{
+					return FItemAddResult::AddedNone(AddAmount, LOCTEXT("InventoryErrorText", "Couldn't add item to inventory"));
+				}
+
+
+				//Item->SetQuantity(Item->GetQuantity() - ActualAddAmount);
+
+				//If we somehow get more of the item than the max stack size the something is wrong with math
+				ensure(Item->GetQuantity() <= Item->MaxStackSize);
+
+				if (ActualAddAmount < AddAmount)
+				{
+					const int ItemQuantity = Item->GetQuantity ();
+					Item->SetQuantity ( ActualAddAmount );
+					AddItem (Item );
+					Item->SetQuantity ( ItemQuantity );
+					return FItemAddResult::AddedSome(AddAmount, ActualAddAmount, ErrorText);
+				}
+				else
+				{
+					AddItem (Item);
+					return FItemAddResult::AddedAll(AddAmount);
+				}
+				
 			}
 			else
 			{
-				//Since we dont have any of this item, we'll add the full stack
-				AddItem(Item);
-				
-				return FItemAddResult::AddedAll(AddAmount);
-				
+				return FItemAddResult::AddedNone(AddAmount, FText::Format(LOCTEXT("InventoryFullStackText", "Couldn't add {ItemName}. You already have a full stack of this Item"), Item->ItemDisplayName));
 			}
 		}
 		else //Item is not stackable

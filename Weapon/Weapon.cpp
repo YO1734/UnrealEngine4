@@ -13,11 +13,16 @@
 #include "Sound/SoundCue.h"
 #include "Net/UnrealNetwork.h"
 #include "Items/EquippableItem.h"
+#include "Items/WeaponItem.h" //New
+#include "Items/AmmoItem.h" //New
 #include "Items/AmmoItem.h"
 #include "DrawDebugHelpers.h"
 #include "Camera/CameraShakeBase.h"
 
+#include "Engine/SkeletalMeshSocket.h"
 #include "Components/SkeletalMeshComponent.h"
+
+
 
 // Sets default values
 AWeapon::AWeapon()
@@ -43,7 +48,7 @@ AWeapon::AWeapon()
 	BurstCounter = 0;
 	LastFireTime = 0.0f;
 
-	ADSTime = 0.5f;
+	ADSTime = 1.8f;
 	RecoilResetSpeed = 5.f;
 	RecoilSpeed = 10.f;
 
@@ -51,6 +56,8 @@ AWeapon::AWeapon()
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
 	bReplicates = true;
 	bNetUseOwnerRelevancy = true;
+
+	
 }
 
 void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -79,6 +86,7 @@ void AWeapon::BeginPlay()
 	if (HasAuthority())
 	{
 		PawnOwner = Cast<ASurvivalCharacter>(GetOwner());
+		
 	}
 }
 
@@ -90,12 +98,19 @@ void AWeapon::Destroyed()
 	StopSimulatingWeaponFire();
 }
 
+
 void AWeapon::UseClipAmmo()
 {
 	if (HasAuthority())
 	{
 		--CurrentAmmoInClip;
+		PawnOwner->UpdateWeaponWeight (PawnOwner->GetEquippedWeapon()->Item->ConstWeight + (CurrentAmmoInClip * WeaponConfig.AmmoClass.GetDefaultObject ()->Weight));
 	}
+}
+
+void AWeapon::ReturnToDefaultWeight ()
+{
+	Item->Weight = Item->WeaponClass.GetDefaultObject ()->DefaultWeight;
 }
 
 void AWeapon::ConsumeAmmo(const int32 Amount)
@@ -106,7 +121,8 @@ void AWeapon::ConsumeAmmo(const int32 Amount)
 		{
 			if (UItem* AmmoItem = Inventory->FindItemByClass(WeaponConfig.AmmoClass))
 			{
-				Inventory->ConsumeItem(AmmoItem, Amount);
+				Inventory->ConsumeItem ( AmmoItem, Amount );
+
 			}
 		}
 	}
@@ -121,7 +137,8 @@ void AWeapon::ReturnAmmoToInventory()
 		{
 			if (UInventoryComponent* Inventory = PawnOwner->PlayerInventory)
 			{
-				Inventory->TryAddItemFromClass(WeaponConfig.AmmoClass, CurrentAmmoInClip);
+				
+				Inventory->TryAddItemFromClass ( WeaponConfig.AmmoClass, CurrentAmmoInClip);
 			}
 		}
 	}
@@ -130,51 +147,19 @@ void AWeapon::ReturnAmmoToInventory()
 
 void AWeapon::OnEquip()
 {
-
-	AttachMeshToPawn();
-
-
-
 	bPendingEquip = true;
-
-	//if (bPendingEquip)
-	//{
-	//	float AnimDuration = PlayWeaponAnimation ( EquipAnim );
-	//	if (AnimDuration <=0.0f)
-	//	{
-	//		AnimDuration = .5f;
-	//	}
-
-	//	GetWorldTimerManager ().SetTimer ( TimerHandle_EquipWeapon, this, &AWeapon::OnEquipFinished, AnimDuration, false );
-
-	//}
-
-	//	//	float AnimDuration = PlayWeaponAnimation(ReloadAnim);
-	//	//if (AnimDuration <= 0.0f)
-	//	//{
-	//	//	AnimDuration = .5f;
-	//	//}
-
-	//	//GetWorldTimerManager().SetTimer(TimerHandle_StopReload, this, &AWeapon::StopReload, AnimDuration, false);
-	//	//if (HasAuthority())
-	//	//{
-	//	//	GetWorldTimerManager().SetTimer(TimerHandle_ReloadWeapon, this, &AWeapon::ReloadWeapon, FMath::Max(0.1f, AnimDuration - 0.1f), false);
-	//	//}
-
-
-
-
-
-	DetermineWeaponState();
-
-	OnEquipFinished();
-
-
+	PlayWeaponAnimation ( EquipAnim,1.f);
+	AttachMeshToPawn();
 	if (PawnOwner && PawnOwner->IsLocallyControlled())
 	{
 		PlayWeaponSound(EquipSound);
 
 	}
+	DetermineWeaponState();
+	OnEquipFinished();
+
+
+
 }
 
 void AWeapon::OnEquipFinished()
@@ -183,6 +168,9 @@ void AWeapon::OnEquipFinished()
 
 	bIsEquipped = true;
 	bPendingEquip = false;
+
+
+
 
 	// Determine the state so that the can reload checks will work
 	DetermineWeaponState();
@@ -202,6 +190,7 @@ void AWeapon::OnEquipFinished()
 
 void AWeapon::OnUnEquip()
 {
+	PlayWeaponAnimation ( EquipAnim,-1.f);
 	DetachMeshFromPawn ();
 	bIsEquipped = false;
 	StopFire();
@@ -224,6 +213,7 @@ void AWeapon::OnUnEquip()
 	}
 
 	ReturnAmmoToInventory();
+	PawnOwner->UpdateWeaponWeight (PawnOwner->GetEquippedWeapon()->Item->ConstWeight);
 	DetermineWeaponState();
 }
 
@@ -277,17 +267,16 @@ void AWeapon::StartReload(bool bFromReplication /*= false*/)
 	{
 		bPendingReload = true;
 		DetermineWeaponState();
-
-		float AnimDuration = PlayWeaponAnimation(ReloadAnim);
+		float AnimDuration = PlayWeaponAnimation(ReloadAnim,1.f);
 		if (AnimDuration <= 0.0f)
 		{
 			AnimDuration = .5f;
 		}
-
 		GetWorldTimerManager().SetTimer(TimerHandle_StopReload, this, &AWeapon::StopReload, AnimDuration, false);
+		
 		if (HasAuthority())
 		{
-			GetWorldTimerManager().SetTimer(TimerHandle_ReloadWeapon, this, &AWeapon::ReloadWeapon, FMath::Max(0.1f, AnimDuration - 0.1f), false);
+			GetWorldTimerManager ().SetTimer ( TimerHandle_ReloadWeapon, this, &AWeapon::ReloadWeapon, FMath::Max ( 0.1f, AnimDuration - 0.1f ), false );
 		}
 
 		if (PawnOwner && PawnOwner->IsLocallyControlled())
@@ -298,10 +287,9 @@ void AWeapon::StartReload(bool bFromReplication /*= false*/)
 	else
 	{
 		ASurvivalPlayerController* Controller = Cast<ASurvivalPlayerController> ( PawnOwner->GetController () );
-		Controller->ShowNotification (FText::FromString(TEXT("Didn't have enough ammo for a reload")));
+		Controller->ShowNotification (FText::FromString(TEXT("Not enough ammo for reload")));
 		Controller = nullptr;
 	}
-
 }
 
 void AWeapon::StopReload()
@@ -322,12 +310,12 @@ void AWeapon::ReloadWeapon()
 	{
 		CurrentAmmoInClip += ClipDelta;
 		ConsumeAmmo(ClipDelta);
+		PawnOwner->UpdateWeaponWeight(PawnOwner->GetEquippedWeapon()->Item->Weight +  (ClipDelta * WeaponConfig.AmmoClass.GetDefaultObject ()->Weight));
 	}
 	else
 	{
 		ASurvivalPlayerController* Controller = Cast<ASurvivalPlayerController> ( PawnOwner->GetController () );
 		Controller->ShowNotification (FText::FromString(TEXT("Didn't have enought ammo for a reload")));
-		Controller = nullptr;
 	}
 }
 
@@ -406,6 +394,33 @@ float AWeapon::GetEquipStartedTime() const
 float AWeapon::GetEquipDuration() const
 {
 	return EquipDuration;
+}
+
+void AWeapon::HideMagazine ()
+{
+	WeaponMesh->HideBoneByName ( "Magazine", EPhysBodyOp::PBO_None );
+}
+
+void AWeapon::UnHideMagazine ()
+{
+	WeaponMesh->UnHideBoneByName ( "Magazine" );
+}
+TSubclassOf<AActor> AWeapon::GetAttachedMagazine ()
+{
+	if (MagazineActor)
+	{
+		return *MagazineActor;
+	}
+	return nullptr;
+}
+
+TSubclassOf<AActor> AWeapon::GetShell ()
+{
+	if (ShellActor)
+	{
+		return *ShellActor;
+	}
+	return nullptr;
 }
 
 void AWeapon::ClientStartReload_Implementation()
@@ -516,7 +531,7 @@ void AWeapon::SimulateWeaponFire()
 	if (!bLoopedFireAnim || !bPlayingFireAnim)
 	{
 		FWeaponAnim AnimToPlay = PawnOwner->IsAiming() || PawnOwner->IsLocallyControlled() ? FireAimingAnim : FireAnim;
-		PlayWeaponAnimation(AnimToPlay);
+		PlayWeaponAnimation ( AnimToPlay, 1.f );
 		bPlayingFireAnim = true;
 	}
 
@@ -642,6 +657,7 @@ void AWeapon::FireShot()
 				PC->ApplyRecoil(RecoilAmount, RecoilSpeed, RecoilResetSpeed, FireCameraShake);
 			}
 
+
 			FVector CamLoc;
 			FRotator CamRot;
 			PC->GetPlayerViewPoint(CamLoc, CamRot);
@@ -713,6 +729,7 @@ void AWeapon::HandleFiring()
 		{
 			PlayWeaponSound(OutOfAmmoSound);
 			ASurvivalPlayerController* MyPC = Cast<ASurvivalPlayerController>(PawnOwner->Controller);
+			MyPC->ShowNotification(FText::FromString(TEXT("Out of ammo")));
 		}
 
 		// stop weapon fire FX, but stay in Firing state
@@ -861,7 +878,7 @@ UAudioComponent* AWeapon::PlayWeaponSound(USoundCue* Sound)
 	return AC;
 }
 
-float AWeapon::PlayWeaponAnimation(const FWeaponAnim& Animation)
+float AWeapon::PlayWeaponAnimation ( const FWeaponAnim& Animation, float Rate = 1.f)
 {
 	float Duration = 0.0f;
 	if (PawnOwner)
@@ -869,7 +886,15 @@ float AWeapon::PlayWeaponAnimation(const FWeaponAnim& Animation)
 		UAnimMontage* UseAnim = PawnOwner->IsLocallyControlled() ? Animation.Pawn1P : Animation.Pawn3P;
 		if (UseAnim)
 		{
-			Duration = PawnOwner->PlayAnimMontage(UseAnim);
+			if (Rate < 0.f)
+			{
+				Duration = PawnOwner->PlayAnimMontage(UseAnim,-1.f);
+			}
+			else
+			{
+				Duration = PawnOwner->PlayAnimMontage ( UseAnim );
+			}
+
 		}
 	}
 

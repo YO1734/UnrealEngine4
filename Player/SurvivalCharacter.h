@@ -42,6 +42,21 @@ public:
 	// Sets default values for this character's properties
 	ASurvivalCharacter();
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite,Category="Character")
+	float CharacterWeight;
+
+	UPROPERTY ( EditAnywhere, BlueprintReadWrite,Category="Movement")
+	float SpeedReductionPerKg = 0.001f;
+
+	UFUNCTION()
+	void UpdateCharacterWeight ( float Weight );
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerUpdateCharacterMovementSpeed ();
+
+	UFUNCTION(BlueprintCallable, Category="Movement")
+	void ClientUpdateCharacterMovementSpeed ();
+
 	//The mesh to have been equipped, if we don`t have an item equipped - ie the bare skin meshes
 	UPROPERTY ( BlueprintReadOnly, Category = "Mesh" )
 		TMap<EEquippableSlot, USkeletalMesh*>NakedMeshes;
@@ -190,6 +205,9 @@ public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerConfirmEquipWeapon(UWeaponItem* Weapon);
 
+		UFUNCTION(Server, Reliable, WithValidation)
+	void ServerConfirmUnEquipWeapon();
+
 	UFUNCTION(Server,Reliable,WithValidation)
 	void ServerEndInteract();
 
@@ -258,6 +276,9 @@ public:
 	UFUNCTION ( BlueprintCallable, Category = "Weapons" )
 		FORCEINLINE class AWeapon* GetEquippedWeapon () const { return EquippedWeapon; };
 
+	UPROPERTY(VisibleAnywhere,BlueprintReadOnly)
+	bool bIsMoving =false;
+
 protected:
 
 	UFUNCTION ( Server, Reliable)
@@ -271,6 +292,8 @@ protected:
 	void UseThrowable ();
 	void SpawnThrowable ();
 	bool CanUseThrowable () const;
+
+
 
 	//Allows for efficient access to equipped items
 	UPROPERTY ( VisibleAnywhere, Category = "Items" )
@@ -307,7 +330,13 @@ public:
 	UFUNCTION ( BlueprintPure,Category="Weapons")
 		FORCEINLINE bool IsAiming ()const { return bIsAiming; };
 
+	UFUNCTION ( BlueprintCallable, Category = "Inventory" )
+		float GetEquippedItemsWeight ();
 
+
+
+	UFUNCTION (Client,UnReliable,BlueprintCallable )
+	void UpdateWeaponWeight ( float Value );
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -324,12 +353,15 @@ protected:
 	void StopFire ();
 
 	UFUNCTION ( Server, Reliable )
-		void ServerProcessMeleeHit ( const FHitResult& MeleeHit );
+		void ServerProcessMeleeHit ( const FHitResult& MeleeHit);
 
 	UFUNCTION ( NetMulticast, UnReliable )
 		void MulticastPlayMeleeFX ();
 
 	void BeginMeleeAttack ();
+
+	UFUNCTION ( Server, Reliable, WithValidation, BlueprintCallable )
+	void ServerConfirmUpdateWeaponWeight (float Value);
 
 	UPROPERTY ()
 		float LastMeleeAttackTime;
@@ -342,7 +374,7 @@ protected:
 
 
 	UPROPERTY ( EditDefaultsOnly, Category = "Melee" )
-		class UAnimMontage* MeleeAttackAnimMontage;
+	class UAnimMontage* MeleeAttackAnimMontage;
 
 	//Called when killed by the player, or killed by something else like the enviroment
 	void Suicide ( struct FDamageEvent const& DamageEvent, const AActor* DamageCauser );

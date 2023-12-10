@@ -28,6 +28,11 @@
 #include "SurvivalGame.h"
 #define LOCTEXT_NAMESPACE "SurvivalCharacter"
 
+const float DefaultWeight = FMath::RandRange ( 65, 75 );
+const float MaxDefaultWalkSpeed = 600.f;
+const float MaxDefaultCrouchSpeed = MaxDefaultWalkSpeed / 2;
+
+
 static FName NAME_AimDownSightsSocket ( "ADSSocket" );
 
 // Sets default values
@@ -117,21 +122,68 @@ MeleeAttackDamage = 20.f;
 
 bIsAiming = false; 
 
-SprintSpeed = GetCharacterMovement ()->MaxWalkSpeed * 1.3f;
-WalkSpeed = GetCharacterMovement ()->MaxWalkSpeed;
+GetCharacterMovement ()->MaxWalkSpeed = MaxDefaultWalkSpeed;
+GetCharacterMovement ()->MaxWalkSpeedCrouched = MaxDefaultCrouchSpeed;
+CharacterWeight = DefaultWeight;
+//UpdateCharacterMovementSpeed ();
 bSprinting = false;
 
 GetMesh()->SetOwnerNoSee(true);
 
 GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+
+}
+
+void ASurvivalCharacter::UpdateCharacterWeight ( float Weight )
+{
+	CharacterWeight += Weight;
+}
+
+
+void ASurvivalCharacter::ServerUpdateCharacterMovementSpeed_Implementation()
+{
+    ClientUpdateCharacterMovementSpeed();
+}
+
+bool ASurvivalCharacter::ServerUpdateCharacterMovementSpeed_Validate()
+{
+    return true;
+}
+
+void ASurvivalCharacter::ClientUpdateCharacterMovementSpeed()
+{
+	if (!HasAuthority())
+	{
+		ServerUpdateCharacterMovementSpeed ();
+	}
+    // Розрахунок модифікатора швидкості на основі ваги
+	float BaseSpeedModifier = 1.0f;
+    float SpeedModifier = BaseSpeedModifier - SpeedReductionPerKg * (CharacterWeight + PlayerInventory->GetCurrentWeight());
+
+    // Обмеження від'ємних значень
+    SpeedModifier = FMath::Max(SpeedModifier, 0.0f);
+
+    // Розрахунок фактичної швидкості, яка залежить від базової швидкості та модифікатора
+    float ActualSpeed = MaxDefaultWalkSpeed * SpeedModifier;
+
+    if (ActualSpeed > MaxDefaultWalkSpeed)
+    {
+        ActualSpeed = MaxDefaultWalkSpeed;
+    }
+
+    GetCharacterMovement()->MaxWalkSpeed = ActualSpeed;
+    GetCharacterMovement()->MaxWalkSpeedCrouched = ActualSpeed / 2;
+    SprintSpeed = GetCharacterMovement()->MaxWalkSpeed * 1.3f;
+    WalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 }
  
 // Called when the game starts or when spawned
 void ASurvivalCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	ClientUpdateCharacterMovementSpeed ();
 	LootPlayerInteraction->OnInteract.AddDynamic ( this, &ASurvivalCharacter::BeginLootingPlayer );
+	PlayerInventory->OnInventoryUpdated.AddDynamic ( this, &ASurvivalCharacter::ClientUpdateCharacterMovementSpeed );
 
 	if (APlayerState* PS = GetPlayerState ())
 	{
@@ -143,6 +195,7 @@ void ASurvivalCharacter::BeginPlay()
 	{
 		NakedMeshes.Add ( PlayerMesh.Key, PlayerMesh.Value->SkeletalMesh );
 	}
+	
 }
 
 void ASurvivalCharacter::GetLifetimeReplicatedProps ( TArray<FLifetimeProperty>& OutLifetimeProps ) const
@@ -205,12 +258,16 @@ void ASurvivalCharacter::StopCrouching()
 
 bool ASurvivalCharacter::CanSprint () const
 {
-	return !IsAiming ();
+	return !IsAiming ()/*&&bIsMoving*/;
 }
 
 void ASurvivalCharacter::StartSprinting ()
 {
-	SetSprinting ( true );
+	if (bIsMoving && !bIsCrouched)
+	{
+		SetSprinting ( true );
+	}
+
 }
 
 void ASurvivalCharacter::StopSprinting ()
@@ -328,6 +385,16 @@ void ASurvivalCharacter::ServerEndInteract_Implementation()
 }
 
 bool ASurvivalCharacter::ServerEndInteract_Validate()
+{
+	return true;
+}
+
+void ASurvivalCharacter::ServerConfirmUnEquipWeapon_Implementation ()
+{
+	UnEquipWeapon ();
+}
+
+bool ASurvivalCharacter::ServerConfirmUnEquipWeapon_Validate ()
 {
 	return true;
 }
@@ -525,8 +592,13 @@ void ASurvivalCharacter::EquipWeapon ( UWeaponItem* WeaponItem )
 
 void ASurvivalCharacter::UnEquipWeapon ()
 {
-
-	if (EquippedWeapon/* && GetLocalRole() < ROLE_Authority*/ )
+	if (EquippedWeapon && GetLocalRole() < ROLE_Authority)
+	{
+		UpdateWeaponWeight ( EquippedWeapon->Item->ConstWeight );
+		ServerConfirmUnEquipWeapon ();
+		
+	}
+	if (EquippedWeapon && HasAuthority())
 	{
 		EquippedWeapon->OnUnEquip ();
 		EquippedWeapon->Destroy ();
@@ -649,6 +721,15 @@ void ASurvivalCharacter::MoveForward(float Val)
 	if (Val != 0.0f)
 	{
 		AddMovementInput(GetActorForwardVector(), Val);
+		if (!bIsMoving)
+		{
+			bIsMoving = true;
+		}
+	}
+	if (Val == 0.0f)
+	{
+		bIsMoving = false;
+		StopSprinting ();
 	}
 }
 
@@ -657,6 +738,10 @@ void ASurvivalCharacter::MoveRight(float Val)
 	if (Val != 0.0f)
 	{
 		AddMovementInput(GetActorRightVector(), Val);
+		if (!bIsMoving)
+		{
+			bIsMoving = true;
+		}
 	}
 }
 
@@ -940,6 +1025,49 @@ void ASurvivalCharacter::StartReload ()
 	}
 }
 
+float ASurvivalCharacter::GetEquippedItemsWeight ()
+{
+	float TotalEquippedItemWeight = 0.f;
+	if (EquippedItems.Num()!=0)
+	{
+		for (auto& Item : EquippedItems)
+		{
+			UEquippableItem* EquippedItem = Item.Value;
+			TotalEquippedItemWeight += EquippedItem->Weight;
+		}
+	}
+	return TotalEquippedItemWeight;
+}
+
+void ASurvivalCharacter::ServerConfirmUpdateWeaponWeight_Implementation (float Value)
+{
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Item->Weight = Value;
+	}
+}
+
+bool ASurvivalCharacter::ServerConfirmUpdateWeaponWeight_Validate (float Value)
+{
+	return true;
+}
+
+
+void ASurvivalCharacter::UpdateWeaponWeight_Implementation( float Value )
+{
+	if (EquippedWeapon)
+	{
+		if (GetLocalRole() < ROLE_Authority)
+		{
+			ServerConfirmUpdateWeaponWeight ( Value );
+		}
+		
+		EquippedWeapon->Item->Weight = Value;
+		ClientUpdateCharacterMovementSpeed ();
+	}
+	
+}
+
 // Called to bind functionality to input
 void ASurvivalCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -999,10 +1127,9 @@ void ASurvivalCharacter::StopFire ()
 }
 
 
-void ASurvivalCharacter::ServerProcessMeleeHit_Implementation ( const FHitResult& MeleeHit )
+void ASurvivalCharacter::ServerProcessMeleeHit_Implementation ( const FHitResult& MeleeHit)
 {
-	
-	if (GetWorld ()->TimeSince ( LastMeleeAttackTime ) > MeleeAttackAnimMontage->GetPlayLength ()&& (GetActorLocation() - MeleeHit.ImpactPoint).Size()<=MeleeAttackDistance)
+	if (GetWorld ()->TimeSince ( LastMeleeAttackTime ) > MeleeAttackAnimMontage->GetPlayLength () && (GetActorLocation () - MeleeHit.ImpactPoint).Size () <= MeleeAttackDistance)
 	{
 		MulticastPlayMeleeFX ();
 
@@ -1016,7 +1143,7 @@ void ASurvivalCharacter::MulticastPlayMeleeFX_Implementation ()
 {
 	if (!IsLocallyControlled ())
 	{
-		PlayAnimMontage ( MeleeAttackAnimMontage );
+		PlayAnimMontage ( MeleeAttackAnimMontage);
 	}
 }
 
@@ -1033,7 +1160,7 @@ void ASurvivalCharacter::BeginMeleeAttack ()
 
 		FCollisionQueryParams QueryParams = FCollisionQueryParams ( "MeleeSweep", false, this );
 
-		PlayAnimMontage ( MeleeAttackAnimMontage );
+		PlayAnimMontage ( MeleeAttackAnimMontage);
 
 		if (GetWorld ()->SweepSingleByChannel ( Hit, StartTrace, EndTrace, FQuat (), COLLISION_WEAPON, Shape, QueryParams ))
 		{
@@ -1046,7 +1173,7 @@ void ASurvivalCharacter::BeginMeleeAttack ()
 				}
 			}
 		}
-		ServerProcessMeleeHit ( Hit );
+		ServerProcessMeleeHit ( Hit);
 
 		LastMeleeAttackTime = GetWorld ()->GetTimeSeconds ();
 	}

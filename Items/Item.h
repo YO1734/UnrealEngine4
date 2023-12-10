@@ -71,9 +71,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Item")
 	EItemRarity Rarity;
 
-	/*The weight of item*/
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Item", meta=(ClampMin = 0.0))
+	/*The weight of item can changed*/
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category="Item", meta=(ClampMin = 0.0))
 	float Weight;
+	
+	/* The weight which should never changed, used for weapon */
+	UPROPERTY ( EditDefaultsOnly, BlueprintReadOnly, Category = "Item" )
+	float ConstWeight;
 
 	/*Whether or not this item can be stacked*/
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Item")

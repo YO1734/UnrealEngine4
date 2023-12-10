@@ -24,6 +24,8 @@ UInteractionComponent::UInteractionComponent()
 	SetHiddenInGame(true);
 }
 
+
+
 void UInteractionComponent::SetInteractableNameText(const FText& NewNameText)
 {
 	InteractionableNameText = NewNameText;

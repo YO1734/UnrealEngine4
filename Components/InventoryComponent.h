@@ -125,6 +125,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	UItem* FindItem(class UItem* Item) const;
 
+	UFUNCTION ( BlueprintPure, Category = "Inventory" )
+	TArray<UItem*> FindItems ( class UItem* Item ) const;
+
+
 	//Return the first item with the same class as ItemClass
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	UItem* FindItemByClass(TSubclassOf<class UItem> ItemClass) const;

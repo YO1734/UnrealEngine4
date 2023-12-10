@@ -22,5 +22,6 @@ public:
 
 	UPROPERTY ( EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon" )
 		TSubclassOf<class AWeapon> WeaponClass;
+	
 
 };

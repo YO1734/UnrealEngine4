@@ -114,11 +114,14 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Destroyed() override;
 
+
+
 protected:
 
 	/** consume a bullet */
 	void UseClipAmmo();
 
+	void ReturnToDefaultWeight ();
 	/**consume ammo from the inventory */
 	void ConsumeAmmo(const int32 Amount);
 
@@ -217,12 +220,35 @@ protected:
 
 public:
 
+	UPROPERTY ( EditDefaultsOnly, BlueprintReadOnly, Category = "Weight" )
+	float DefaultWeight;
+
 	/** weapon mesh*/
 	UPROPERTY(EditAnywhere, Category = Components)
 	USkeletalMeshComponent* WeaponMesh;
 
-protected:
 
+	UFUNCTION (BlueprintCallable)
+		void HideMagazine ();
+	UFUNCTION (BlueprintCallable)
+		void UnHideMagazine ();
+
+	void UpdateItemWeight ();
+
+	UFUNCTION ( BlueprintCallable )
+		TSubclassOf<AActor> GetAttachedMagazine ();
+
+	UPROPERTY (EditAnywhere, BlueprintReadOnly, Category = "Magazine" )
+		TSubclassOf<AActor> MagazineActor;
+
+	UFUNCTION ( BlueprintCallable )
+	TSubclassOf<AActor> GetShell ();
+
+	UPROPERTY (EditAnywhere, BlueprintReadOnly, Category = "Magazine" )
+	TSubclassOf<AActor> ShellActor;
+
+
+protected:
 	/** Adjustment to handle frame rate affecting actual timer interval. */
 	UPROPERTY(Transient)
 	float TimerIntervalAdjustment;
@@ -378,8 +404,6 @@ protected:
 	/** Handle for efficient management of OnEquipFinished timer */
 	FTimerHandle TimerHandle_OnEquipFinished;
 
-	FTimerHandle TimerHandle_EquipWeapon;
-
 	/** Handle for efficient management of StopReload timer */
 	FTimerHandle TimerHandle_StopReload;
 
@@ -474,7 +498,7 @@ protected:
 	UAudioComponent* PlayWeaponSound(USoundCue* Sound);
 
 	/** play weapon animations */
-	float PlayWeaponAnimation(const FWeaponAnim& Animation);
+	float PlayWeaponAnimation(const FWeaponAnim& Animation,float Rate);
 
 	/** stop playing weapon animations */
 	void StopWeaponAnimation(const FWeaponAnim& Animation);

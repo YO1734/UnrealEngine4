@@ -46,6 +46,7 @@ public:
 	bool bAllowMulitpleInteractions;
 
 
+
 	//Call this to change the name of the interactable. Will also refresh the interaction widget.
 	UFUNCTION(BlueprintCallable, Category="Interaction")
 	void SetInteractableNameText(const FText& NewNameText);

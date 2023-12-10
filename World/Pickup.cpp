@@ -5,6 +5,7 @@
 #include "Items/Item.h"
 #include"Net/UnrealNetwork.h"
 #include "Player/SurvivalCharacter.h"
+#include "Player/SurvivalPlayerController.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/InteractionComponent.h"
 #include "Components/InventoryComponent.h"
@@ -146,17 +147,28 @@ void APickup::OnTakePickup(ASurvivalCharacter* Taker)
 		{
 			const FItemAddResult AddResult = PlayerInventory->TryAddItem(Item);
 
+			if (AddResult.Result  == EItemAddResult::IAR_NoItemsAdd)
+			{
+				ASurvivalPlayerController* PlayerController = Cast<ASurvivalPlayerController> ( Taker->GetController () );
+				if (PlayerController)
+				{
+					PlayerController->ClientShowNotification (AddResult.ErrorText);
+					return;
+				}
+			}
+
 			if (AddResult.ActualAmountGiven < Item->GetQuantity())
 			{
 				
 				Item->SetQuantity(Item->GetQuantity() - AddResult.ActualAmountGiven);
+				
 			
 			}
 			else if (AddResult.ActualAmountGiven >= Item->GetQuantity())
 			{
-				
-				Destroy();
+				Destroy ();
 			}
+			UE_LOG( LogTemp, Warning, TEXT ( "Test" ) );
 
 		}
 	}
